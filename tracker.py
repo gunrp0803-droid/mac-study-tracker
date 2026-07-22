@@ -39,6 +39,7 @@ class StudyTrackerApp:
         self.accumulated_seconds = 0
         self.is_tracking = False
         self.current_active_app = "대기 중"
+        self.discord_active_seconds = 0
         
         # 차단할 프로그램 목록 (소문자 기준 블랙리스트)
         # 스포티파이(Spotify)는 제외하고 순수 오락 목적만 가진 프로그램을 차단합니다.
@@ -410,6 +411,16 @@ class StudyTrackerApp:
                 # 1. 활성 앱 모니터링
                 active_app = self.get_active_window_macos()
                 self.current_active_app = active_app
+                
+                # 디스코드 연속 5분 사용 제한 체크 (잡담 방지)
+                if "discord" in active_app.lower():
+                    self.discord_active_seconds += 1
+                    if self.discord_active_seconds >= 300: # 5분 (300초)
+                        self.discord_active_seconds = 0
+                        self.root.after(0, lambda: self.status_label.config(text="🚨 디스코드 5분 초과로 강제 종료!", fg=self.error_color))
+                        self.kill_blocked_app("Discord")
+                else:
+                    self.discord_active_seconds = 0
                 
                 # 메인 UI 요소 업데이트는 thread-safety를 위해 root.after로 전달
                 self.root.after(0, lambda a=active_app: self.app_detect_label.config(text=f"감지된 앱: {a}"))
