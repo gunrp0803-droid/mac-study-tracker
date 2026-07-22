@@ -33,5 +33,60 @@ python tracker.py
 - 연동할 **Firebase URL**을 입력해 클라우드와 실시간 상태를 동기화할 수 있습니다.
 - 설정 값과 공부 누적 시간은 `config.json` 파일에 로컬로 자동 보관되어 프로그램 재실행 시 복원됩니다.
 
+## ⚙️ 차단 프로그램(블랙리스트) 커스터마이징 가이드
+
+프로그램 차단 목록이나 제한 시간은 코드 내에서 아주 쉽게 원하는 대로 수정할 수 있습니다.
+
+### 1. 블랙리스트 애플리케이션 변경하기
+사용하지 않거나 공부할 때 차단하고 싶은 게임, 소셜 미디어 앱이 있다면 `tracker.py` 파일의 약 44번째 라인 부근의 `self.blocked_apps` 리스트를 수정해 주세요.
+
+```python
+        # tracker.py 파일 약 44번째 줄
+        self.blocked_apps = [
+            "among us",               # 어몽어스 게임
+            "feather launcher",       # 마인크래프트 페더 런처
+            "jujutsuphanpara",        # 주술회전 팬텀 퍼레이드 게임
+            "league of legends",      # 리그 오브 레전드 게임
+            "leagueoflegends",        # 리그 오브 레전드 프로세스명 대비
+            "riot client",            # 라이엇 클라이언트 (롤 런처)
+            "riotclient",             # 라이엇 클라이언트 프로세스명 대비
+            "series comic viewer",    # 네이버 시리즈 만화 뷰어
+            "steam",                  # (예시 추가) 스팀 클라이언트 차단 시
+        ]
+```
+* **팁**: 차단하려는 앱의 이름을 **영어 소문자**로 입력해 주시면 대소문자 구분 없이 감지하여 차단합니다.
+* **프로세스 이름 확인법**: 차단하려는 앱을 켠 상태에서 Study Tracker의 메인 화면에 표시되는 **`감지된 앱: [앱이름]`** 부분을 보고 프로세스명을 그대로 추가하면 가장 정확합니다.
+
+### 2. 디스코드(Discord) 연속 사용 제한 시간 조절하기
+기본적으로 디스코드는 업무/공부 소통 목적으로 사용할 수 있도록 허용되어 있으나, 연속으로 5분(300초) 동안 켜두고 사용하면 잡담 방지를 위해 강제로 종료됩니다. 
+제한 시간을 늘리거나 줄이고 싶다면 `tracker.py` 파일의 약 415번째 라인 부근을 수정해 주세요.
+
+```python
+                # tracker.py 파일 약 415번째 줄
+                if "discord" in active_app.lower():
+                    self.discord_active_seconds += 1
+                    if self.discord_active_seconds >= 300: # 5분 (초 단위로 수정 가능, 예: 10분 = 600)
+                        self.discord_active_seconds = 0
+                        self.root.after(0, lambda: self.status_label.config(text="🚨 디스코드 5분 초과로 강제 종료!", fg=self.error_color))
+                        self.kill_blocked_app("Discord")
+```
+* 디스코드 시간제한을 아예 없애고 싶으시다면 이 부분의 코드 블록 전체를 주석 처리 또는 삭제하시면 됩니다.
+
+### 3. 차단 브라우저 탭(웹 사이트) 변경하기
+인터넷 강의 사이트 외에 차단하고 싶은 딴짓 웹 사이트 목록은 `tracker.py` 파일의 약 57번째 라인 부근의 `self.blocked_websites`를 수정하시면 됩니다.
+
+```python
+        # tracker.py 파일 약 57번째 줄
+        self.blocked_websites = [
+            "youtube.com", "youtu.be",
+            "instagram.com",
+            "facebook.com",
+            "tiktok.com",
+            "twitter.com", "x.com",
+            "netflix.com",
+            "twitch.tv"
+        ]
+```
+
 ---
 *Developed as part of BIND-assignment.*
