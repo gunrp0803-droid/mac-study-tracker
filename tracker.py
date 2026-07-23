@@ -407,6 +407,9 @@ class StudyTrackerApp:
     def tracking_worker(self):
         """1초 주기로 백그라운드에서 동작하며 실제 공부 조건에 부합하는지 감시하고 타이머를 올립니다."""
         while self.running:
+            target_seconds = int(self.target_hours * 3600)
+            is_goal_reached = self.accumulated_seconds >= target_seconds
+            
             if self.is_tracking:
                 # 1. 활성 앱 모니터링
                 active_app = self.get_active_window_macos()
@@ -424,10 +427,6 @@ class StudyTrackerApp:
                 
                 # 메인 UI 요소 업데이트는 thread-safety를 위해 root.after로 전달
                 self.root.after(0, lambda a=active_app: self.app_detect_label.config(text=f"감지된 앱: {a}"))
-                
-                # 오늘 목표 시간 계산
-                target_seconds = int(self.target_hours * 3600)
-                is_goal_reached = self.accumulated_seconds >= target_seconds
                 
                 # 2. 2초 주기로 딴짓 웹 사이트 탭 강제 강제 종료 실행 (유튜브, 인스타, 페북 등 저격)
                 if self.accumulated_seconds % 2 == 0 and not is_goal_reached:
@@ -463,7 +462,26 @@ class StudyTrackerApp:
                     # 오늘 목표 달성 여부 실시간 체크
                     if self.accumulated_seconds >= target_seconds:
                         self.root.after(0, lambda: self.status_label.config(text="오늘 목표 달성 성공! 🎉", fg=self.success_color))
+            else:
+                # [공부 타이머가 일시정지 되어 있을 때의 보안 감시 로직]
+                # 목표를 채우지 못했다면 일시정지 상태여도 게임, 디스코드, 딴짓 탭 차단 작동!
+                if not is_goal_reached:
+                    active_app = self.get_active_window_macos()
+                    
+                    # 1. 블랙리스트 프로그램이 활성화되면 즉시 종료
+                    if self.check_app_blocked(active_app):
+                        self.root.after(0, lambda a=active_app: self.status_label.config(text=f"🚨 [미완수 잠금] 일시정지 중 딴짓 불가! [{a}] 종료", fg=self.error_color))
+                        self.kill_blocked_app(active_app)
+                    
+                    # 2. 디스코드 감지되면 즉시 종료 (일시정지 중에는 즉시 차단!)
+                    if "discord" in active_app.lower():
+                        self.root.after(0, lambda: self.status_label.config(text="🚨 [미완수 잠금] 일시정지 중 디스코드 사용 불가!", fg=self.error_color))
+                        self.kill_blocked_app("Discord")
                         
+                    # 3. 딴짓 웹사이트 차단 (일시정지 중에는 2초 주기로 작동)
+                    if int(time.time()) % 2 == 0:
+                        self.close_distracting_browser_tabs()
+            
             time.sleep(1)
 
     def pause_by_system(self, reason_text):
