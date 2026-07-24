@@ -40,6 +40,9 @@ class StudyTrackerApp:
         self.is_tracking = False
         self.current_active_app = "대기 중"
         self.discord_active_seconds = 0
+        self.target_locked_date = ""
+        self.is_target_locked = False
+        self.current_date = datetime.date.today().isoformat()
         
         # 차단할 프로그램 목록 (소문자 기준 블랙리스트)
         # 스포티파이(Spotify)는 제외하고 순수 오락 목적만 가진 프로그램을 차단합니다.
@@ -79,6 +82,9 @@ class StudyTrackerApp:
 
     def load_config(self):
         """설정 파일에서 Firebase URL 및 오늘 누적 시간을 불러옵니다."""
+        today_date = datetime.date.today().isoformat()
+        self.current_date = today_date
+        
         if os.path.exists(CONFIG_FILE):
             try:
                 with open(CONFIG_FILE, "r") as f:
@@ -86,11 +92,19 @@ class StudyTrackerApp:
                     self.firebase_url = config.get("firebase_url", "")
                     self.target_hours = config.get("target_hours", 3.0)
                     
-                    # 오늘 날짜와 저장된 날짜가 같으면 누적 공부 시간 복원
                     saved_date = config.get("last_date", "")
-                    today_date = datetime.date.today().isoformat()
+                    self.target_locked_date = config.get("target_locked_date", "")
+                    
+                    # 오늘 날짜와 저장된 날짜가 같으면 누적 공부 시간 및 목표 시간 고정 상태 복원
                     if saved_date == today_date:
                         self.accumulated_seconds = config.get("accumulated_seconds", 0)
+                        if self.target_locked_date == today_date or saved_date == today_date:
+                            self.target_locked_date = today_date
+                            self.is_target_locked = True
+                    else:
+                        self.accumulated_seconds = 0
+                        self.target_locked_date = ""
+                        self.is_target_locked = False
             except Exception as e:
                 print(f"설정 불러오기 실패: {e}")
 
@@ -100,7 +114,8 @@ class StudyTrackerApp:
             "firebase_url": self.firebase_url,
             "target_hours": self.target_hours,
             "accumulated_seconds": self.accumulated_seconds,
-            "last_date": datetime.date.today().isoformat()
+            "last_date": datetime.date.today().isoformat(),
+            "target_locked_date": self.target_locked_date
         }
         try:
             with open(CONFIG_FILE, "w") as f:
@@ -180,10 +195,26 @@ class StudyTrackerApp:
         
         # 목표 시간 입력창 (가이드 텍스트 hh:mm 제공)
         tk.Label(input_frame, text="오늘 목표 (시간:분):", bg=self.card_color, fg=self.text_color, font=("Helvetica", 10)).grid(row=0, column=0, sticky="w", pady=5)
-        self.target_entry = tk.Entry(input_frame, bg="#222226", fg=self.text_color, insertbackground=self.text_color, bd=0, width=12, font=("Helvetica", 10))
+        
+        target_sub_frame = tk.Frame(input_frame, bg=self.card_color)
+        target_sub_frame.grid(row=0, column=1, sticky="e", pady=5)
+        
+        self.target_entry = tk.Entry(target_sub_frame, bg="#222226", fg=self.text_color, insertbackground=self.text_color, bd=0, width=10, font=("Helvetica", 10))
         # 기존 저장값을 hh:mm 형태로 이쁘게 변환해 디폴트 삽입
         self.target_entry.insert(0, self.format_hours_to_str(self.target_hours))
-        self.target_entry.grid(row=0, column=1, sticky="e", pady=5)
+        self.target_entry.pack(side="left")
+        
+        self.target_lock_label = tk.Label(
+            target_sub_frame,
+            text=" 🔒 잠김" if self.is_target_locked else " 🔓 미설정",
+            bg=self.card_color,
+            fg=self.accent_color if self.is_target_locked else self.dim_text,
+            font=("Helvetica", 9, "bold" if self.is_target_locked else "normal")
+        )
+        self.target_lock_label.pack(side="left", padx=(2, 0))
+
+        if self.is_target_locked:
+            self.target_entry.config(state="disabled", disabledbackground="#1e1e22", disabledforeground=self.dim_text)
         
         # Firebase URL 입력창
         tk.Label(input_frame, text="Firebase URL:", bg=self.card_color, fg=self.text_color, font=("Helvetica", 10)).grid(row=1, column=0, sticky="w", pady=5)
@@ -235,13 +266,23 @@ class StudyTrackerApp:
                 url = "https://" + url
             self.firebase_url = url
             
-            # hh:mm 형식 목표 시간 파싱
-            parsed_hours = self.parse_str_to_hours(self.target_entry.get().strip())
-            if parsed_hours is None:
-                messagebox.showerror("입력 오류", "목표 시간 형식이 올바르지 않습니다.\n'02:30' 이나 '3:00' 형태로 입력해 주세요.")
-                return
+            today_str = datetime.date.today().isoformat()
             
-            self.target_hours = parsed_hours
+            # 오늘 목표 시간이 아직 고정되지 않은 경우에만 설정 및 하루 고정(잠금)
+            if not self.is_target_locked:
+                parsed_hours = self.parse_str_to_hours(self.target_entry.get().strip())
+                if parsed_hours is None or parsed_hours <= 0:
+                    messagebox.showerror("입력 오류", "목표 시간 형식이 올바르지 않습니다.\n'02:30' 이나 '3:00' 형태로 0시간보다 크게 입력해 주세요.")
+                    return
+                
+                self.target_hours = parsed_hours
+                self.target_locked_date = today_str
+                self.is_target_locked = True
+                
+                # UI 입력창 잠금 적용 (오늘 하루 동안 수정 불가능)
+                self.target_entry.config(state="disabled", disabledbackground="#1e1e22", disabledforeground=self.dim_text)
+                self.target_lock_label.config(text=" 🔒 잠김", fg=self.accent_color, font=("Helvetica", 9, "bold"))
+            
             self.is_tracking = True
             self.start_btn.config(text="일시 정지 ⏸️", bg="#44444a", fg=self.text_color)
             self.status_label.config(text="열공 중! 측정 중입니다 🔥", fg=self.success_color)
@@ -488,6 +529,14 @@ class StudyTrackerApp:
         """자리를 비웠거나 다른 앱을 켰을 때 시스템이 타이머를 중지시킴 (메인 스레드에서만 실행)"""
         self.start_btn.config(text="공부 시작 🔥", bg=self.accent_color, fg=self.bg_color)
         self.status_label.config(text=reason_text, fg=self.error_color)
+        self.save_config()
+
+    def reset_for_new_day(self):
+        """자정이 지나 새로운 날짜가 되었을 때 목표 시간 잠금을 해제하고 UI를 갱신합니다."""
+        self.target_entry.config(state="normal", bg="#222226", fg=self.text_color)
+        self.target_lock_label.config(text=" 🔓 미설정", fg=self.dim_text, font=("Helvetica", 9, "normal"))
+        self.update_timer_display()
+        self.status_label.config(text="새로운 하루가 시작되었습니다! 🌅", fg=self.text_color)
         self.save_config()
 
     def firebase_sync_worker(self):
