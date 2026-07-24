@@ -532,12 +532,19 @@ class StudyTrackerApp:
         self.save_config()
 
     def reset_for_new_day(self):
-        """자정이 지나 새로운 날짜가 되었을 때 목표 시간 잠금을 해제하고 UI를 갱신합니다."""
+        """자정(24시) 정각이 되었을 때 공부 시간 0초 초기화, 목표 잠금 해제 및 제한/차단을 즉시 재가동합니다."""
+        self.accumulated_seconds = 0
+        self.is_tracking = False
+        self.start_btn.config(text="공부 시작 🔥", bg=self.accent_color, fg=self.bg_color)
         self.target_entry.config(state="normal", bg="#222226", fg=self.text_color)
         self.target_lock_label.config(text=" 🔓 미설정", fg=self.dim_text, font=("Helvetica", 9, "normal"))
         self.update_timer_display()
-        self.status_label.config(text="새로운 하루가 시작되었습니다! 🌅", fg=self.text_color)
+        self.status_label.config(text="🚨 24시(자정) 정각! 공부시간 초기화 및 제한 재가동", fg=self.error_color)
         self.save_config()
+        
+        # 즉시 Firebase에도 오늘 0초 상태 전송하여 윈도우 PC 및 클라우드 즉시 재잠금
+        if self.firebase_url:
+            threading.Thread(target=self.immediate_firebase_reset, daemon=True).start()
 
     def firebase_sync_worker(self):
         """10초 주기로 Firebase Realtime Database에 오늘의 공부 누적량과 목표량 상태를 실시간 업로드합니다."""
