@@ -9,14 +9,16 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 import requests
 
-# 설정 파일 경로
-CONFIG_FILE = "config.json"
+# 설정 파일 경로 (스크립트 위치 기준 — 실행 cwd와 무관)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
+DEFAULT_FIREBASE_URL = "https://study-radar-72625-default-rtdb.firebaseio.com/"
 
 class StudyTrackerApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Antigravity Study Tracker (Mac)")
-        self.root.geometry("450x520") # 초기화 버튼 배치를 위해 세로 길이를 520으로 약간 늘림
+        self.root.geometry("450x480")
         self.root.resizable(False, False)
         
         # 스타일 테마 (Modern Dark Blue & Teal)
@@ -87,19 +89,18 @@ class StudyTrackerApp:
         
         if os.path.exists(CONFIG_FILE):
             try:
-                with open(CONFIG_FILE, "r") as f:
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                     config = json.load(f)
-                    self.firebase_url = config.get("firebase_url", "")
+                    self.firebase_url = (config.get("firebase_url") or "").strip()
                     self.target_hours = config.get("target_hours", 3.0)
-                    
+
                     saved_date = config.get("last_date", "")
                     self.target_locked_date = config.get("target_locked_date", "")
-                    
+
                     # 오늘 날짜와 저장된 날짜가 같으면 누적 공부 시간 및 목표 시간 고정 상태 복원
                     if saved_date == today_date:
                         self.accumulated_seconds = config.get("accumulated_seconds", 0)
-                        if self.target_locked_date == today_date or saved_date == today_date:
-                            self.target_locked_date = today_date
+                        if self.target_locked_date == today_date:
                             self.is_target_locked = True
                     else:
                         self.accumulated_seconds = 0
@@ -107,6 +108,9 @@ class StudyTrackerApp:
                         self.is_target_locked = False
             except Exception as e:
                 print(f"설정 불러오기 실패: {e}")
+
+        if not self.firebase_url:
+            self.firebase_url = DEFAULT_FIREBASE_URL
 
     def save_config(self):
         """현재 설정을 파일에 저장합니다."""
@@ -118,7 +122,7 @@ class StudyTrackerApp:
             "target_locked_date": self.target_locked_date
         }
         try:
-            with open(CONFIG_FILE, "w") as f:
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=4)
         except Exception as e:
             print(f"설정 저장 실패: {e}")
@@ -230,25 +234,13 @@ class StudyTrackerApp:
         btn_frame = tk.Frame(self.root, bg=self.bg_color)
         btn_frame.pack(fill="x", side="bottom", pady=15, padx=20)
         
-        # 가로 정렬용 서브 프레임 (공부 시간 초기화 및 공부 시작 정렬)
-        button_row = tk.Frame(btn_frame, bg=self.bg_color)
-        button_row.pack(fill="x", pady=5)
-        
-        # 1. 공부시간 초기화 버튼 (왼쪽)
-        self.reset_btn = tk.Button(
-            button_row, text="누적 리셋 🔄", font=("Helvetica", 11, "bold"),
-            bg="#2a2a30", fg=self.dim_text, activebackground="#3a3a42", activeforeground=self.text_color,
-            relief="flat", bd=0, height=2, width=12, command=self.reset_accumulated_time
-        )
-        self.reset_btn.pack(side="left", padx=(0, 10))
-        
-        # 2. 스타일리시한 시작/정지 버튼 (오른쪽 채우기)
+        # 스타일리시한 시작/정지 버튼 (전체 너비)
         self.start_btn = tk.Button(
-            button_row, text="공부 시작 🔥", font=("Helvetica", 11, "bold"),
+            btn_frame, text="공부 시작 🔥", font=("Helvetica", 11, "bold"),
             bg=self.accent_color, fg=self.bg_color, activebackground="#008a90", activeforeground=self.bg_color,
             relief="flat", bd=0, height=2, command=self.toggle_tracking
         )
-        self.start_btn.pack(side="right", fill="x", expand=True)
+        self.start_btn.pack(fill="x", expand=True)
         
         # 타이머 초기화 업데이트 한번 실행
         self.update_timer_display()
@@ -535,13 +527,16 @@ class StudyTrackerApp:
         """자정(24시) 정각이 되었을 때 공부 시간 0초 초기화, 목표 잠금 해제 및 제한/차단을 즉시 재가동합니다."""
         self.accumulated_seconds = 0
         self.is_tracking = False
+        self.target_locked_date = ""
+        self.is_target_locked = False
+        self.current_date = datetime.date.today().isoformat()
         self.start_btn.config(text="공부 시작 🔥", bg=self.accent_color, fg=self.bg_color)
         self.target_entry.config(state="normal", bg="#222226", fg=self.text_color)
         self.target_lock_label.config(text=" 🔓 미설정", fg=self.dim_text, font=("Helvetica", 9, "normal"))
         self.update_timer_display()
         self.status_label.config(text="🚨 24시(자정) 정각! 공부시간 초기화 및 제한 재가동", fg=self.error_color)
         self.save_config()
-        
+
         # 즉시 Firebase에도 오늘 0초 상태 전송하여 윈도우 PC 및 클라우드 즉시 재잠금
         if self.firebase_url:
             threading.Thread(target=self.immediate_firebase_reset, daemon=True).start()
@@ -549,32 +544,38 @@ class StudyTrackerApp:
     def firebase_sync_worker(self):
         """10초 주기로 Firebase Realtime Database에 오늘의 공부 누적량과 목표량 상태를 실시간 업로드합니다."""
         while self.running:
+            # 자정 날짜 변경 감지 → 당일 리셋 (Windows 잠금도 함께 재가동)
+            today_str = datetime.date.today().isoformat()
+            if today_str != self.current_date:
+                self.root.after(0, self.reset_for_new_day)
+                time.sleep(1)
+                continue
+
             if self.firebase_url:
-                today_str = datetime.date.today().isoformat()
-                base_url = self.firebase_url.rstrip('/')
+                base_url = self.firebase_url.rstrip("/")
                 url = f"{base_url}/study_status.json"
-                
+
                 target_seconds = int(self.target_hours * 3600)
-                
+
                 payload = {
                     "date": today_str,
                     "today_study_seconds": self.accumulated_seconds,
                     "target_study_seconds": target_seconds,
                     "is_study_active": self.is_tracking,
-                    "last_updated": time.time()
+                    "last_updated": time.time(),
                 }
-                
+
                 try:
-                    # PUT 요청으로 실시간 상태 덮어쓰기
                     response = requests.put(url, json=payload, timeout=5)
                     if response.status_code == 200:
                         self.root.after(0, lambda: self.db_status_label.config(text="● 클라우드 동기화 완료", fg=self.success_color))
+                        self.save_config()
                     else:
                         self.root.after(0, lambda: self.db_status_label.config(text="● 동기화 오류 (응답 에러)", fg=self.error_color))
                 except Exception as e:
                     self.root.after(0, lambda: self.db_status_label.config(text="● 통신 불가 (연결 끊김)", fg=self.error_color))
                     print(f"Sync 에러: {e}")
-                    
+
             time.sleep(10)
 
     def onClose(self):
