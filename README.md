@@ -95,4 +95,3 @@ python tracker.py
 ```
 
 ---
-*Developed as part of BIND-assignment.*
