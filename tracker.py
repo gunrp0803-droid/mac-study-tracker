@@ -46,6 +46,7 @@ class StudyTrackerApp:
         self.is_target_locked = False
         self.current_date = datetime.date.today().isoformat()
         self._goal_synced = False  # 목표 달성 직후 Firebase 즉시 동기화했는지
+        self._midnight_reset_pending = False  # 자정 리셋 중복 예약 방지
         
         # 차단할 프로그램 목록 (소문자 기준 블랙리스트)
         # 스포티파이(Spotify)는 제외하고 순수 오락 목적만 가진 프로그램을 차단합니다.
@@ -101,20 +102,61 @@ class StudyTrackerApp:
                     # 오늘 날짜와 저장된 날짜가 같으면 누적 공부 시간 및 목표 시간 고정 상태 복원
                     if saved_date == today_date:
                         self.accumulated_seconds = config.get("accumulated_seconds", 0)
+                        # 오늘 이미 '공부 시작'으로 잠근 경우에만 목표 입력 잠금 유지
                         if self.target_locked_date == today_date:
                             self.is_target_locked = True
+                        else:
+                            self.is_target_locked = False
+                            self.target_locked_date = ""
                         target_seconds = int(float(self.target_hours) * 3600)
                         self._goal_synced = self.accumulated_seconds >= target_seconds
                     else:
+                        # 날짜가 바뀜(자정 이후 재실행) → 공부시간 0 + 목표 다시 수정 가능
                         self.accumulated_seconds = 0
                         self.target_locked_date = ""
                         self.is_target_locked = False
                         self._goal_synced = False
+                        self._persist_new_day_unlock = True
             except Exception as e:
                 print(f"설정 불러오기 실패: {e}")
 
         if not self.firebase_url:
             self.firebase_url = DEFAULT_FIREBASE_URL
+
+        if getattr(self, "_persist_new_day_unlock", False):
+            self._persist_new_day_unlock = False
+            self.save_config()
+
+    def apply_target_lock_ui(self, locked):
+        """목표 시간 입력창 잠금/해제 UI를 한곳에서 적용합니다."""
+        if locked:
+            self.target_entry.config(state="disabled", disabledbackground="#1e1e22", disabledforeground=self.dim_text)
+            self.target_lock_label.config(
+                text=" 🔒 잠김 (자정 해제)",
+                fg=self.accent_color,
+                font=("Helvetica", 9, "bold"),
+            )
+        else:
+            self.target_entry.config(state="normal", bg="#222226", fg=self.text_color)
+            self.target_lock_label.config(
+                text=" 🔓 수정 가능",
+                fg=self.dim_text,
+                font=("Helvetica", 9, "normal"),
+            )
+
+    def lock_daily_target(self, hours):
+        """공부 시작 시 오늘 목표를 확정하고 자정까지 수정 불가로 잠급니다."""
+        today_str = datetime.date.today().isoformat()
+        self.target_hours = hours
+        self.target_locked_date = today_str
+        self.is_target_locked = True
+        self.apply_target_lock_ui(True)
+
+    def unlock_daily_target(self):
+        """자정(또는 날짜 변경) 시 목표 시간 입력을 다시 열어줍니다."""
+        self.target_locked_date = ""
+        self.is_target_locked = False
+        self.apply_target_lock_ui(False)
 
     def save_config(self):
         """현재 설정을 파일에 저장합니다."""
@@ -214,7 +256,7 @@ class StudyTrackerApp:
         
         self.target_lock_label = tk.Label(
             target_sub_frame,
-            text=" 🔒 잠김" if self.is_target_locked else " 🔓 미설정",
+            text=" 🔒 잠김 (자정 해제)" if self.is_target_locked else " 🔓 수정 가능",
             bg=self.card_color,
             fg=self.accent_color if self.is_target_locked else self.dim_text,
             font=("Helvetica", 9, "bold" if self.is_target_locked else "normal")
@@ -222,7 +264,7 @@ class StudyTrackerApp:
         self.target_lock_label.pack(side="left", padx=(2, 0))
 
         if self.is_target_locked:
-            self.target_entry.config(state="disabled", disabledbackground="#1e1e22", disabledforeground=self.dim_text)
+            self.apply_target_lock_ui(True)
         
         # Firebase URL 입력창
         tk.Label(input_frame, text="Firebase URL:", bg=self.card_color, fg=self.text_color, font=("Helvetica", 10)).grid(row=1, column=0, sticky="w", pady=5)
@@ -264,20 +306,14 @@ class StudyTrackerApp:
             
             today_str = datetime.date.today().isoformat()
             
-            # 오늘 목표 시간이 아직 고정되지 않은 경우에만 설정 및 하루 고정(잠금)
+            # 오늘 처음 '공부 시작'을 누른 순간부터 목표 시간 잠금 (자정까지 수정 불가)
             if not self.is_target_locked:
                 parsed_hours = self.parse_str_to_hours(self.target_entry.get().strip())
                 if parsed_hours is None or parsed_hours <= 0:
                     messagebox.showerror("입력 오류", "목표 시간 형식이 올바르지 않습니다.\n'02:30' 이나 '3:00' 형태로 0시간보다 크게 입력해 주세요.")
                     return
                 
-                self.target_hours = parsed_hours
-                self.target_locked_date = today_str
-                self.is_target_locked = True
-                
-                # UI 입력창 잠금 적용 (오늘 하루 동안 수정 불가능)
-                self.target_entry.config(state="disabled", disabledbackground="#1e1e22", disabledforeground=self.dim_text)
-                self.target_lock_label.config(text=" 🔒 잠김", fg=self.accent_color, font=("Helvetica", 9, "bold"))
+                self.lock_daily_target(parsed_hours)
             
             self.is_tracking = True
             self.start_btn.config(text="일시 정지 ⏸️", bg="#44444a", fg=self.text_color)
@@ -472,6 +508,14 @@ class StudyTrackerApp:
     def tracking_worker(self):
         """1초 주기로 백그라운드에서 동작하며 실제 공부 조건에 부합하는지 감시하고 타이머를 올립니다."""
         while self.running:
+            # 자정 날짜 변경을 1초 단위로도 감지 (목표 잠금 해제 + 공부시간 초기화)
+            today_str = datetime.date.today().isoformat()
+            if today_str != self.current_date and not self._midnight_reset_pending:
+                self._midnight_reset_pending = True
+                self.root.after(0, self.reset_for_new_day)
+                time.sleep(1)
+                continue
+
             target_seconds = int(self.target_hours * 3600)
             is_goal_reached = self.accumulated_seconds >= target_seconds
             
@@ -559,18 +603,19 @@ class StudyTrackerApp:
         self.save_config()
 
     def reset_for_new_day(self):
-        """자정(24시) 정각이 되었을 때 공부 시간 0초 초기화, 목표 잠금 해제 및 제한/차단을 즉시 재가동합니다."""
+        """자정(24시) 정각: 공부시간 0초 초기화 + 목표 시간 다시 수정 가능 + Windows 재잠금."""
         self.accumulated_seconds = 0
         self.is_tracking = False
-        self.target_locked_date = ""
-        self.is_target_locked = False
         self._goal_synced = False
+        self._midnight_reset_pending = False
         self.current_date = datetime.date.today().isoformat()
+        self.unlock_daily_target()
         self.start_btn.config(text="공부 시작 🔥", bg=self.accent_color, fg=self.bg_color)
-        self.target_entry.config(state="normal", bg="#222226", fg=self.text_color)
-        self.target_lock_label.config(text=" 🔓 미설정", fg=self.dim_text, font=("Helvetica", 9, "normal"))
         self.update_timer_display()
-        self.status_label.config(text="🚨 24시(자정) 정각! 공부시간 초기화 및 제한 재가동", fg=self.error_color)
+        self.status_label.config(
+            text="🚨 자정 초기화! 공부시간 리셋 · 목표 다시 수정 가능",
+            fg=self.error_color,
+        )
         self.save_config()
 
         # 즉시 Firebase에도 오늘 0초 상태 전송하여 윈도우 PC 및 클라우드 즉시 재잠금
@@ -580,10 +625,12 @@ class StudyTrackerApp:
     def firebase_sync_worker(self):
         """10초 주기로 Firebase Realtime Database에 오늘의 공부 누적량과 목표량 상태를 실시간 업로드합니다."""
         while self.running:
-            # 자정 날짜 변경 감지 → 당일 리셋 (Windows 잠금도 함께 재가동)
+            # 자정 날짜 변경 감지 → 당일 리셋 (공부시간 + 목표 잠금 해제 + Windows 재잠금)
             today_str = datetime.date.today().isoformat()
             if today_str != self.current_date:
-                self.root.after(0, self.reset_for_new_day)
+                if not self._midnight_reset_pending:
+                    self._midnight_reset_pending = True
+                    self.root.after(0, self.reset_for_new_day)
                 time.sleep(1)
                 continue
 
