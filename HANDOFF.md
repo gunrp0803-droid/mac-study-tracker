@@ -150,3 +150,15 @@ git push
 
 - **2026-07-25**: Firebase URL “미설정” 버그 수정, Mac 자정 리셋 수정, GitHub Mac-only 푸시, Windows에 폴더 복사 후 `agent.py` 더블클릭으로 연동 성공 → 본 문서 작성.
 - **2026-07-25 (이어짐)**: 작업 1개마다 STATUS/HANDOFF 갱신 + Mac 코드 변경 시마다 GitHub 커밋·푸시(Windows 제외) 규칙을 인수인계에 고정. `mac_tracker/`에 STATUS·HANDOFF 복사본 추가.
+- **2026-07-25 (목표 해제)**: 3시간(목표) 달성 시 Windows 잠금이 풀리는 경로를 재검토. 기본 비교 로직은 이미 올바름. Mac은 달성 즉시 Firebase 동기화 + `goal_reached` 전송, Windows는 `should_lock()`으로 해제 판정 강화. Windows에는 최신 `agent.py` 재배포 필요.
+
+---
+
+## 9. 잠금 해제 판정 (중요)
+
+| 조건 | 결과 |
+|------|------|
+| `date == 오늘` AND `target_study_seconds > 0` AND (`today_study_seconds >= target` OR `goal_reached`) | **잠금 해제** |
+| 그 외 (미달·날짜 불일치·목표 없음·데이터 없음·오프라인 3회+) | **잠금** |
+
+기본 목표 3시간 → `target_study_seconds = 10800`. Mac이 10800초를 찍는 순간 즉시 Firebase PUT → Windows는 최대 약 2초 내 해제.

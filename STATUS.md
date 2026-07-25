@@ -10,7 +10,7 @@
 ---
 
 ## 📅 최종 업데이트 일시
-- **시각**: 2026-07-25 13:36
+- **시각**: 2026-07-25 13:45
 - **작업 환경**: `/Users/dgsw50/Desktop/anything/study`
 - **상세 과정 문서**: `HANDOFF.md` (반드시 함께 읽을 것)
 
@@ -49,17 +49,27 @@ Desktop/anything/study/
    - 탐색기에서 **`agent.py` 더블클릭**으로 실행 → 정상 동작 확인
    - (참고) PowerShell을 홈 폴더에서 쓰면 `agent.py` / `requirements.txt` not found — 폴더로 `cd` 필요
 6. **세션 규칙 고정 (2026-07-25)**: 작업 1개마다 STATUS/HANDOFF 갱신 + Mac 코드 변경 시마다 GitHub 커밋·푸시(Windows 제외)
+7. **목표 달성 → Windows 잠금 해제 검증·강화 (2026-07-25)**:
+   - 기존에도 `today_study_seconds >= target_study_seconds`이면 해제됨을 확인
+   - Mac: 달성 순간 Firebase 즉시 PUT + `goal_reached` 필드 추가
+   - Windows: `should_lock()`로 판정 명확화(날짜·목표>0·공부≥목표/`goal_reached`)
+   - 단위 테스트로 3시간(10800초) 경계 잠금/해제 PASS
+   - ⚠️ Windows PC에는 수정된 `agent.py`를 **다시 복사**해야 반영됨
 
 ---
 
 ## 📌 다음 할 일 (Next)
 
+- [ ] Windows PC에 최신 `windows_agent/agent.py` 재복사·재실행
 - [ ] (선택) Windows에서 `pyinstaller`로 `agent.exe` 만들어 콘솔 없이·부팅 자동 실행 강화
 - [ ] (선택) Windows 시작 프로그램 등록이 의도대로인지 재부팅 후 확인
 - [x] Mac 타이머·Windows 에이전트 기본 연동
 - [x] 인수인계·커밋 워크플로 문서화
+- [x] 3시간 달성 시 Windows 잠금 해제 로직 검증·강화
 
 일상 운영: Mac에서 `tracker.py` 켜고, Windows에서 `agent.py`(또는 exe) 켜 두면 됨.
+
+잠금 해제 조건: **오늘 날짜 일치** AND **목표 > 0** AND (**공부시간 ≥ 목표** OR `goal_reached=true`). 기본 목표 3시간 = 10800초.
 
 ---
 

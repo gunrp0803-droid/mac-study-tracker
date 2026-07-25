@@ -45,6 +45,7 @@ class StudyTrackerApp:
         self.target_locked_date = ""
         self.is_target_locked = False
         self.current_date = datetime.date.today().isoformat()
+        self._goal_synced = False  # 목표 달성 직후 Firebase 즉시 동기화했는지
         
         # 차단할 프로그램 목록 (소문자 기준 블랙리스트)
         # 스포티파이(Spotify)는 제외하고 순수 오락 목적만 가진 프로그램을 차단합니다.
@@ -102,10 +103,13 @@ class StudyTrackerApp:
                         self.accumulated_seconds = config.get("accumulated_seconds", 0)
                         if self.target_locked_date == today_date:
                             self.is_target_locked = True
+                        target_seconds = int(float(self.target_hours) * 3600)
+                        self._goal_synced = self.accumulated_seconds >= target_seconds
                     else:
                         self.accumulated_seconds = 0
                         self.target_locked_date = ""
                         self.is_target_locked = False
+                        self._goal_synced = False
             except Exception as e:
                 print(f"설정 불러오기 실패: {e}")
 
@@ -304,26 +308,54 @@ class StudyTrackerApp:
                 # 메인 UI 지연 방지를 위해 리셋 통신은 백그라운드 스레드로 처리
                 threading.Thread(target=self.immediate_firebase_reset, daemon=True).start()
 
-    def immediate_firebase_reset(self):
-        """데이터 초기화 시 즉각 Firebase에 리셋 요청을 보내 동기화합니다."""
+    def build_study_status_payload(self, today_study_seconds=None, is_study_active=None):
+        """Windows 에이전트가 잠금/해제에 쓰는 study_status 페이로드를 만듭니다."""
+        today_str = datetime.date.today().isoformat()
+        if today_study_seconds is None:
+            today_study_seconds = self.accumulated_seconds
+        if is_study_active is None:
+            is_study_active = self.is_tracking
+        target_seconds = int(float(self.target_hours) * 3600)
+        study_seconds = int(today_study_seconds)
+        return {
+            "date": today_str,
+            "today_study_seconds": study_seconds,
+            "target_study_seconds": target_seconds,
+            "goal_reached": target_seconds > 0 and study_seconds >= target_seconds,
+            "is_study_active": bool(is_study_active),
+            "last_updated": time.time(),
+        }
+
+    def push_study_status(self, payload, success_text="● 클라우드 동기화 완료"):
+        """Firebase study_status를 즉시 PUT합니다. 성공 여부를 반환합니다."""
+        if not self.firebase_url:
+            return False
         try:
-            today_str = datetime.date.today().isoformat()
-            base_url = self.firebase_url.rstrip('/')
+            base_url = self.firebase_url.rstrip("/")
             url = f"{base_url}/study_status.json"
-            target_seconds = int(self.target_hours * 3600)
-            
-            payload = {
-                "date": today_str,
-                "today_study_seconds": 0,
-                "target_study_seconds": target_seconds,
-                "is_study_active": False,
-                "last_updated": time.time()
-            }
             response = requests.put(url, json=payload, timeout=5)
             if response.status_code == 200:
-                self.root.after(0, lambda: self.db_status_label.config(text="● 클라우드 초기화 리셋 완료", fg=self.success_color))
+                self.root.after(0, lambda: self.db_status_label.config(text=success_text, fg=self.success_color))
+                return True
+            self.root.after(0, lambda: self.db_status_label.config(text="● 동기화 오류 (응답 에러)", fg=self.error_color))
+            return False
         except Exception as e:
+            self.root.after(0, lambda: self.db_status_label.config(text="● 통신 불가 (연결 끊김)", fg=self.error_color))
+            print(f"Sync 에러: {e}")
+            return False
+
+    def immediate_firebase_reset(self):
+        """데이터 초기화 시 즉각 Firebase에 리셋 요청을 보내 동기화합니다."""
+        payload = self.build_study_status_payload(today_study_seconds=0, is_study_active=False)
+        ok = self.push_study_status(payload, success_text="● 클라우드 초기화 리셋 완료")
+        if not ok:
             self.root.after(0, lambda: self.db_status_label.config(text="● 리셋 통신 실패", fg=self.error_color))
+
+    def immediate_firebase_goal_sync(self):
+        """목표 달성 순간 Windows 잠금이 바로 풀리도록 Firebase에 즉시 업로드합니다."""
+        payload = self.build_study_status_payload()
+        if self.push_study_status(payload, success_text="● 목표 달성 → 윈도우 잠금 해제 전송"):
+            self.save_config()
 
     def get_macos_idle_time(self):
         """pynput 감지기 대신, macOS 전용 내장 IOKit 시스템 호출을 이용해 마우스/키보드의 '맥북 전체 유휴(비활동) 시간'을 초 단위로 즉시 가져옵니다."""
@@ -492,9 +524,12 @@ class StudyTrackerApp:
                     self.accumulated_seconds += 1
                     self.root.after(0, self.update_timer_display)
                     
-                    # 오늘 목표 달성 여부 실시간 체크
+                    # 오늘 목표 달성 여부 실시간 체크 → 달성 직후 Firebase 즉시 전송(Windows 잠금 해제)
                     if self.accumulated_seconds >= target_seconds:
                         self.root.after(0, lambda: self.status_label.config(text="오늘 목표 달성 성공! 🎉", fg=self.success_color))
+                        if not self._goal_synced:
+                            self._goal_synced = True
+                            threading.Thread(target=self.immediate_firebase_goal_sync, daemon=True).start()
             else:
                 # [공부 타이머가 일시정지 되어 있을 때의 보안 감시 로직]
                 # 목표를 채우지 못했다면 일시정지 상태여도 게임, 디스코드, 딴짓 탭 차단 작동!
@@ -529,6 +564,7 @@ class StudyTrackerApp:
         self.is_tracking = False
         self.target_locked_date = ""
         self.is_target_locked = False
+        self._goal_synced = False
         self.current_date = datetime.date.today().isoformat()
         self.start_btn.config(text="공부 시작 🔥", bg=self.accent_color, fg=self.bg_color)
         self.target_entry.config(state="normal", bg="#222226", fg=self.text_color)
@@ -552,29 +588,11 @@ class StudyTrackerApp:
                 continue
 
             if self.firebase_url:
-                base_url = self.firebase_url.rstrip("/")
-                url = f"{base_url}/study_status.json"
-
-                target_seconds = int(self.target_hours * 3600)
-
-                payload = {
-                    "date": today_str,
-                    "today_study_seconds": self.accumulated_seconds,
-                    "target_study_seconds": target_seconds,
-                    "is_study_active": self.is_tracking,
-                    "last_updated": time.time(),
-                }
-
-                try:
-                    response = requests.put(url, json=payload, timeout=5)
-                    if response.status_code == 200:
-                        self.root.after(0, lambda: self.db_status_label.config(text="● 클라우드 동기화 완료", fg=self.success_color))
-                        self.save_config()
-                    else:
-                        self.root.after(0, lambda: self.db_status_label.config(text="● 동기화 오류 (응답 에러)", fg=self.error_color))
-                except Exception as e:
-                    self.root.after(0, lambda: self.db_status_label.config(text="● 통신 불가 (연결 끊김)", fg=self.error_color))
-                    print(f"Sync 에러: {e}")
+                payload = self.build_study_status_payload()
+                if payload["goal_reached"]:
+                    self._goal_synced = True
+                if self.push_study_status(payload):
+                    self.save_config()
 
             time.sleep(10)
 
