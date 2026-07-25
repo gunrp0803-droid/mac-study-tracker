@@ -4,13 +4,13 @@
 > 1. 이 폴더 (`/Users/dgsw50/Desktop/anything/study`)에서 새 세션이 시작되면, 유저 설명이 없어도 **`STATUS.md`와 `HANDOFF.md`를 먼저 읽고** 이어서 작업하세요.
 > 2. **코드 수정 시**: 수정할 때마다 실행/테스트로 동작 검증하세요.
 > 3. **작업 1개 끝낼 때마다** `STATUS.md`와 `HANDOFF.md`를 **반드시 갱신**하세요. (완료 항목·다음 할 일·변경 이력·함정)
-> 4. **Mac 코드가 바뀔 때마다** `mac_tracker/`에서 GitHub(`gunrp0803-droid/mac-study-tracker`)에 **즉시 커밋**하세요. `windows_agent/`는 **절대 포함하지 마세요.**
-> 5. 런타임 상태만 바뀐 `config.json`(누적 초·날짜 등)은 커밋하지 마세요. 코드·문서·의존성 변경만 커밋합니다.
+> 4. **Mac 코드가 바뀔 때마다** `mac_tracker/`에서 GitHub(`gunrp0803-droid/mac-study-tracker`)에 **즉시 커밋하고 `git push`까지** 하세요. `windows_agent/`는 **절대 포함하지 마세요.**
+> 5. 런타임 상태만 바뀐 `config.json`(누적 초·날짜 등)은 커밋하지 마세요. 코드·문서·의존성 변경만 커밋·푸시합니다.
 
 ---
 
 ## 📅 최종 업데이트 일시
-- **시각**: 2026-07-25 13:35
+- **시각**: 2026-07-25 13:36
 - **작업 환경**: `/Users/dgsw50/Desktop/anything/study`
 - **상세 과정 문서**: `HANDOFF.md` (반드시 함께 읽을 것)
 
@@ -48,7 +48,7 @@ Desktop/anything/study/
    - `windows_agent` 폴더를 Windows에 복사
    - 탐색기에서 **`agent.py` 더블클릭**으로 실행 → 정상 동작 확인
    - (참고) PowerShell을 홈 폴더에서 쓰면 `agent.py` / `requirements.txt` not found — 폴더로 `cd` 필요
-6. **세션 규칙 고정 (2026-07-25)**: 작업 1개마다 STATUS/HANDOFF 갱신 + Mac 코드 변경 시마다 GitHub 커밋(Windows 제외)
+6. **세션 규칙 고정 (2026-07-25)**: 작업 1개마다 STATUS/HANDOFF 갱신 + Mac 코드 변경 시마다 GitHub 커밋·푸시(Windows 제외)
 
 ---
 
@@ -67,8 +67,7 @@ Desktop/anything/study/
 
 1. 작업 1개 수행 → 실행/테스트
 2. **즉시** `STATUS.md` + `HANDOFF.md` 갱신 (study/ 원본 + `mac_tracker/` 복사본 동기화)
-3. Mac 코드/문서가 바뀌었으면 `mac_tracker/`에서 커밋 (Windows 제외)
-4. 유저가 푸시 요청하면 그때 `git push`
+3. Mac 코드/문서가 바뀌었으면 `mac_tracker/`에서 **커밋 + `git push`** (Windows 제외)
 
 ---
 
@@ -76,5 +75,5 @@ Desktop/anything/study/
 1. `STATUS.md` + `HANDOFF.md` 읽기
 2. Firebase 라이브: `curl -s "https://study-radar-72625-default-rtdb.firebaseio.com/study_status.json"`
 3. Mac/Windows `config.json`의 `firebase_url` 확인
-4. 수정 → 테스트 → **문서 갱신** → **Mac-only 커밋**
-5. push 시 Windows 코드 제외 재확인
+4. 수정 → 테스트 → **문서 갱신** → **Mac-only 커밋 + push**
+5. push 전 Windows 코드 제외 재확인

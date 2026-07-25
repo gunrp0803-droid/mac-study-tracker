@@ -2,7 +2,7 @@
 
 > **AI 에이전트**: 이 폴더에서 새 세션을 시작하면 **먼저 `STATUS.md`와 이 파일(`HANDOFF.md`)을 읽고** 이어서 작업하세요.  
 > **작업 1개 끝낼 때마다** `STATUS.md` + `HANDOFF.md`를 **반드시 갱신**하세요. (한 번에 몰아서 쓰지 말 것)  
-> **Mac 코드가 수정될 때마다** `mac_tracker/` → GitHub `gunrp0803-droid/mac-study-tracker`에 **즉시 커밋**. `windows_agent/`는 **절대 올리지 말 것**.
+> **Mac 코드가 수정될 때마다** `mac_tracker/` → GitHub `gunrp0803-droid/mac-study-tracker`에 **즉시 커밋 + `git push`**. `windows_agent/`는 **절대 올리지 말 것**.
 
 ---
 
@@ -108,15 +108,15 @@ curl -s "https://study-radar-72625-default-rtdb.firebaseio.com/study_status.json
 2. Mac `config.json` / Windows `config.json` / Firebase 라이브 데이터 확인
 3. 유저 요청에 맞춰 수정 → **실행/테스트**
 4. **작업 1개마다** `STATUS.md` + `HANDOFF.md` 갱신 (`study/` 원본과 `mac_tracker/` 복사본 동기화)
-5. **Mac 코드/문서 변경 시마다** `mac_tracker/`에서 커밋 (`windows_agent/` 제외). 런타임 `config.json` 상태값은 커밋하지 않음
-6. 유저가 요청할 때만 `git push`. GitHub에는 **Mac만**
+5. **Mac 코드/문서 변경 시마다** `mac_tracker/`에서 **커밋 + `git push`** (`windows_agent/` 제외). 런타임 `config.json` 상태값은 커밋하지 않음. GitHub에는 **Mac만**
 
-### 커밋 위치
+### 커밋·푸시 위치
 ```bash
 cd ~/Desktop/anything/study/mac_tracker
 # Windows 제외 확인 후
 git add <변경된 Mac 파일들>
 git commit -m "..."
+git push
 ```
 원격: `https://github.com/gunrp0803-droid/mac-study-tracker`
 
@@ -149,4 +149,4 @@ git commit -m "..."
 ## 8. 변경 이력 (요약)
 
 - **2026-07-25**: Firebase URL “미설정” 버그 수정, Mac 자정 리셋 수정, GitHub Mac-only 푸시, Windows에 폴더 복사 후 `agent.py` 더블클릭으로 연동 성공 → 본 문서 작성.
-- **2026-07-25 (이어짐)**: 작업 1개마다 STATUS/HANDOFF 갱신 + Mac 코드 변경 시마다 GitHub 커밋(Windows 제외) 규칙을 인수인계에 고정. `mac_tracker/`에 STATUS·HANDOFF 복사본 추가.
+- **2026-07-25 (이어짐)**: 작업 1개마다 STATUS/HANDOFF 갱신 + Mac 코드 변경 시마다 GitHub 커밋·푸시(Windows 제외) 규칙을 인수인계에 고정. `mac_tracker/`에 STATUS·HANDOFF 복사본 추가.
