@@ -12,7 +12,7 @@ import requests
 # 설정 파일 경로 (스크립트 위치 기준 — 실행 cwd와 무관)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
-DEFAULT_FIREBASE_URL = "https://study-radar-72625-default-rtdb.firebaseio.com/"
+DEFAULT_FIREBASE_URL = "https://study-radar-72625-111d9-default-rtdb.firebaseio.com/"
 
 class StudyTrackerApp:
     def __init__(self, root):

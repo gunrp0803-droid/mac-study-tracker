@@ -14,7 +14,7 @@
 |------|------|------|
 | Mac 타이머 | 공부 시간 측정 → Firebase 업로드 | `Desktop/anything/study/mac_tracker/` |
 | Windows 에이전트 | Firebase 감시 → 목표 미달 시 화면 잠금 | `Desktop/anything/study/windows_agent/` |
-| 클라우드 허브 | 실시간 DB | `https://study-radar-72625-default-rtdb.firebaseio.com/` |
+| 클라우드 허브 | 실시간 DB | `https://study-radar-72625-111d9-default-rtdb.firebaseio.com/` |
 
 - GitHub (Mac만): `https://github.com/gunrp0803-droid/mac-study-tracker`
 - **Windows 코드는 GitHub에 올리지 않음** (`mac_tracker/.gitignore`에 `windows_agent/` 등록)
@@ -97,7 +97,7 @@ copy config.json dist\
 확인용:
 
 ```bash
-curl -s "https://study-radar-72625-default-rtdb.firebaseio.com/study_status.json"
+curl -s "https://study-radar-72625-111d9-default-rtdb.firebaseio.com/study_status.json"
 ```
 
 ---
@@ -153,6 +153,7 @@ git push
 - **2026-07-25 (목표 해제)**: 3시간(목표) 달성 시 Windows 잠금이 풀리는 경로를 재검토. 기본 비교 로직은 이미 올바름. Mac은 달성 즉시 Firebase 동기화 + `goal_reached` 전송, Windows는 `should_lock()`으로 해제 판정 강화. Windows에는 최신 `agent.py` 재배포 필요.
 - **2026-07-25 (목표 잠금)**: 목표 시간은 `공부 시작` 클릭 시 당일 잠금, **자정(24시)**에 공부시간과 함께 잠금 해제되어 다시 수정 가능. 자정 감지 1초 주기 + 중복 리셋 방지.
 - **2026-07-25 (로그 스팸)**: Windows 에이전트가 목표 달성 후 2초마다 완료 메시지를 찍던 문제 수정 → 잠금↔해제 **전환 시 1회만** 출력, 미달 진행 로그는 1분 간격. Mac `study/`의 `windows_agent/agent.py`를 Windows에 다시 복사해야 함.
+- **2026-07-26 (Firebase 교체)**: 기존 Realtime Database URL이 404로 응답해 새 인스턴스 `study-radar-72625-111d9-default-rtdb`로 변경. Mac/Windows config와 기본 URL을 함께 갱신했으며, Windows에는 최신 `windows_agent` 폴더를 다시 복사해야 함.
 
 ---
 

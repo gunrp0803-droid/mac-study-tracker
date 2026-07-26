@@ -10,7 +10,7 @@
 ---
 
 ## 📅 최종 업데이트 일시
-- **시각**: 2026-07-25 14:46
+- **시각**: 2026-07-26 11:19
 - **작업 환경**: `/Users/dgsw50/Desktop/anything/study`
 - **상세 과정 문서**: `HANDOFF.md` (반드시 함께 읽을 것)
 - **오늘 목표 (수동)**: **2시간** (유저 요청으로 3→2 변경, Firebase `target_study_seconds=7200`)
@@ -19,7 +19,7 @@
 
 ## 🎯 프로젝트 개요
 - **이름**: Study Flight Radar — 공부 연동 Windows 게임 PC 화면 잠금
-- **Firebase**: `https://study-radar-72625-default-rtdb.firebaseio.com/`
+- **Firebase**: `https://study-radar-72625-111d9-default-rtdb.firebaseio.com/`
 - **GitHub (Mac only)**: `gunrp0803-droid/mac-study-tracker`
 
 ---
@@ -64,6 +64,9 @@ Desktop/anything/study/
    - 목표 달성 메시지가 2초마다 반복되던 문제 → **상태 전환 시 1회만** 출력
    - 미달성 진행 로그는 최대 1분 1회
    - ⚠️ Windows에 최신 `agent.py` **재복사 후 재실행** 필요
+10. **Firebase 인스턴스 교체 (2026-07-26)**:
+   - 기존 `study-radar-72625-default-rtdb`가 404를 반환해 새 Realtime Database 인스턴스로 변경
+   - Mac/Windows 기본 URL과 설정 파일을 새 주소로 갱신
 
 ---
 
@@ -101,7 +104,7 @@ Desktop/anything/study/
 
 ## 💡 새 세션 체크리스트
 1. `STATUS.md` + `HANDOFF.md` 읽기
-2. Firebase 라이브: `curl -s "https://study-radar-72625-default-rtdb.firebaseio.com/study_status.json"`
+2. Firebase 라이브: `curl -s "https://study-radar-72625-111d9-default-rtdb.firebaseio.com/study_status.json"`
 3. Mac/Windows `config.json`의 `firebase_url` 확인
 4. 수정 → 테스트 → **문서 갱신** → **Mac-only 커밋 + push**
 5. push 전 Windows 코드 제외 재확인
