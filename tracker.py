@@ -46,6 +46,7 @@ class StudyTrackerApp:
         self.is_target_locked = False
         self.current_date = datetime.date.today().isoformat()
         self._goal_synced = False  # 목표 달성 직후 Firebase 즉시 동기화했는지
+        self._goal_popup_shown = False  # 오늘 목표 달성 팝업을 이미 표시했는지
         self._midnight_reset_pending = False  # 자정 리셋 중복 예약 방지
         
         # 차단할 프로그램 목록 (소문자 기준 블랙리스트)
@@ -74,6 +75,10 @@ class StudyTrackerApp:
         
         self.load_config()
         self.setup_ui()
+
+        # 앱을 목표 달성 후 다시 켠 경우에도 오늘 완료 안내를 한 번 표시합니다.
+        if self._goal_synced:
+            self.root.after(100, self.show_goal_reached_popup)
         
         # 실시간 백그라운드 워커 시작
         self.running = True
@@ -393,6 +398,16 @@ class StudyTrackerApp:
         if self.push_study_status(payload, success_text="● 목표 달성 → 윈도우 잠금 해제 전송"):
             self.save_config()
 
+    def show_goal_reached_popup(self):
+        """오늘 공부 목표를 달성했음을 한 번만 팝업으로 알립니다."""
+        if self._goal_popup_shown:
+            return
+        self._goal_popup_shown = True
+        messagebox.showinfo(
+            "공부시간 달성",
+            "오늘 공부시간을 모두 채웠습니다! 🎉\n이제 자유롭게 쉬어도 됩니다."
+        )
+
     def get_macos_idle_time(self):
         """pynput 감지기 대신, macOS 전용 내장 IOKit 시스템 호출을 이용해 마우스/키보드의 '맥북 전체 유휴(비활동) 시간'을 초 단위로 즉시 가져옵니다."""
         try:
@@ -571,6 +586,7 @@ class StudyTrackerApp:
                     # 오늘 목표 달성 여부 실시간 체크 → 달성 직후 Firebase 즉시 전송(Windows 잠금 해제)
                     if self.accumulated_seconds >= target_seconds:
                         self.root.after(0, lambda: self.status_label.config(text="오늘 목표 달성 성공! 🎉", fg=self.success_color))
+                        self.root.after(0, self.show_goal_reached_popup)
                         if not self._goal_synced:
                             self._goal_synced = True
                             threading.Thread(target=self.immediate_firebase_goal_sync, daemon=True).start()
@@ -607,6 +623,7 @@ class StudyTrackerApp:
         self.accumulated_seconds = 0
         self.is_tracking = False
         self._goal_synced = False
+        self._goal_popup_shown = False
         self._midnight_reset_pending = False
         self.current_date = datetime.date.today().isoformat()
         self.unlock_daily_target()
