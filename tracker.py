@@ -142,14 +142,14 @@ class StudyTrackerApp:
         if locked:
             self.target_entry.config(state="disabled", disabledbackground="#1e1e22", disabledforeground=self.dim_text)
             self.target_lock_label.config(
-                text=" 🔒 잠김 (자정 해제)",
+                text=" 잠김 (자정 해제)",
                 fg=self.accent_color,
                 font=("Helvetica", 9, "bold"),
             )
         else:
             self.target_entry.config(state="normal", bg="#222226", fg=self.text_color)
             self.target_lock_label.config(
-                text=" 🔓 수정 가능",
+                text=" 수정 가능",
                 fg=self.dim_text,
                 font=("Helvetica", 9, "normal"),
             )
@@ -243,7 +243,7 @@ class StudyTrackerApp:
     def setup_ui(self):
         """현대적인 다크 모드 GUI 구성"""
         # 타이틀 영역
-        title_label = tk.Label(self.root, text="STUDY FLIGHT RADAR", font=("Helvetica", 16, "bold"), bg=self.bg_color, fg=self.accent_color)
+        title_label = tk.Label(self.root, text="Study Tracker", font=("Helvetica", 16, "bold"), bg=self.bg_color, fg=self.accent_color)
         title_label.pack(pady=15)
         
         # 메인 카드 프레임
@@ -255,7 +255,7 @@ class StudyTrackerApp:
         self.timer_label.pack(pady=12)
         
         # 상태 표시 및 현재 감지된 활성 앱
-        self.status_label = tk.Label(card, text="공부 대기 중 ⏸️", font=("Helvetica", 12, "bold"), bg=self.card_color, fg=self.dim_text)
+        self.status_label = tk.Label(card, text="대기 중", font=("Helvetica", 12, "bold"), bg=self.card_color, fg=self.dim_text)
         self.status_label.pack(pady=2)
         
         self.app_detect_label = tk.Label(card, text="감지된 앱: 없음", font=("Helvetica", 10), bg=self.card_color, fg=self.dim_text)
@@ -282,7 +282,7 @@ class StudyTrackerApp:
         
         self.target_lock_label = tk.Label(
             target_sub_frame,
-            text=" 🔒 잠김 (자정 해제)" if self.is_target_locked else " 🔓 수정 가능",
+            text=" 잠김 (자정 해제)" if self.is_target_locked else " 수정 가능",
             bg=self.card_color,
             fg=self.accent_color if self.is_target_locked else self.dim_text,
             font=("Helvetica", 9, "bold" if self.is_target_locked else "normal")
@@ -299,7 +299,7 @@ class StudyTrackerApp:
         self.url_entry.grid(row=1, column=1, sticky="e", pady=5)
         
         # 연동 상태 표시등
-        self.db_status_label = tk.Label(card, text="● 클라우드 미연동", font=("Helvetica", 9), bg=self.card_color, fg=self.error_color)
+        self.db_status_label = tk.Label(card, text="Firebase 연결 안 됨", font=("Helvetica", 9), bg=self.card_color, fg=self.error_color)
         self.db_status_label.pack(pady=8)
         
         # 하단 컨트롤 버튼 영역
@@ -308,7 +308,7 @@ class StudyTrackerApp:
         
         # 스타일리시한 시작/정지 버튼 (전체 너비)
         self.start_btn = tk.Button(
-            btn_frame, text="공부 시작 🔥", font=("Helvetica", 11, "bold"),
+            btn_frame, text="공부 시작", font=("Helvetica", 11, "bold"),
             bg=self.accent_color, fg=self.bg_color, activebackground="#008a90", activeforeground=self.bg_color,
             relief="flat", bd=0, height=2, command=self.toggle_tracking
         )
@@ -346,15 +346,15 @@ class StudyTrackerApp:
             self.is_tracking = True
             self._last_valid_tracking_at = time.monotonic()
             self._study_time_remainder = 0.0
-            self.start_btn.config(text="일시 정지 ⏸️", bg="#44444a", fg=self.text_color)
-            self.status_label.config(text="열공 중! 측정 중입니다 🔥", fg=self.success_color)
+            self.start_btn.config(text="일시 정지", bg="#44444a", fg=self.text_color)
+            self.status_label.config(text="측정 중", fg=self.success_color)
             self.save_config()
         else:
             self.is_tracking = False
             self._last_valid_tracking_at = None
             self._study_time_remainder = 0.0
-            self.start_btn.config(text="공부 시작 🔥", bg=self.accent_color, fg=self.bg_color)
-            self.status_label.config(text="공부 일시 정지 중 ⏸️", fg=self.dim_text)
+            self.start_btn.config(text="공부 시작", bg=self.accent_color, fg=self.bg_color)
+            self.status_label.config(text="일시 정지", fg=self.dim_text)
             self.save_config()
 
     def reset_accumulated_time(self):
@@ -364,11 +364,11 @@ class StudyTrackerApp:
             return
         
         # 정말 리셋할 것인지 컨펌 윈도우 팝업
-        confirm = messagebox.askyesno("공부 시간 초기화", "정말로 오늘의 누적 공부 시간을 00:00:00으로 초기화하시겠습니까?\n(클라우드 동기화 상태도 즉시 0초로 리셋되어 윈도우 PC가 바로 잠기게 됩니다.)")
+        confirm = messagebox.askyesno("공부 시간 초기화", "오늘의 누적 공부 시간을 00:00:00으로 초기화하시겠습니까?\n(Firebase에도 즉시 반영됩니다.)")
         if confirm:
             self.accumulated_seconds = 0
             self.update_timer_display()
-            self.status_label.config(text="오늘 공부량이 초기화되었습니다 🔄", fg=self.dim_text)
+            self.status_label.config(text="오늘 기록이 초기화되었습니다", fg=self.dim_text)
             self.save_config()
             
             # Firebase에 실시간 0초 상태 덮어씌우기 (즉시 동기화)
@@ -394,7 +394,7 @@ class StudyTrackerApp:
             "last_updated": time.time(),
         }
 
-    def push_study_status(self, payload, success_text="● 클라우드 동기화 완료"):
+    def push_study_status(self, payload, success_text="Firebase 동기화 완료"):
         """Firebase study_status를 즉시 PUT합니다. 성공 여부를 반환합니다."""
         if not self.firebase_url:
             return False
@@ -405,24 +405,24 @@ class StudyTrackerApp:
             if response.status_code == 200:
                 self.root.after(0, lambda: self.db_status_label.config(text=success_text, fg=self.success_color))
                 return True
-            self.root.after(0, lambda: self.db_status_label.config(text="● 동기화 오류 (응답 에러)", fg=self.error_color))
+                self.root.after(0, lambda: self.db_status_label.config(text="Firebase 응답 오류", fg=self.error_color))
             return False
         except Exception as e:
-            self.root.after(0, lambda: self.db_status_label.config(text="● 통신 불가 (연결 끊김)", fg=self.error_color))
+            self.root.after(0, lambda: self.db_status_label.config(text="Firebase 연결 실패", fg=self.error_color))
             print(f"Sync 에러: {e}")
             return False
 
     def immediate_firebase_reset(self):
         """데이터 초기화 시 즉각 Firebase에 리셋 요청을 보내 동기화합니다."""
         payload = self.build_study_status_payload(today_study_seconds=0, is_study_active=False)
-        ok = self.push_study_status(payload, success_text="● 클라우드 초기화 리셋 완료")
+        ok = self.push_study_status(payload, success_text="Firebase 기록 초기화 완료")
         if not ok:
-            self.root.after(0, lambda: self.db_status_label.config(text="● 리셋 통신 실패", fg=self.error_color))
+            self.root.after(0, lambda: self.db_status_label.config(text="Firebase 초기화 실패", fg=self.error_color))
 
     def immediate_firebase_goal_sync(self):
         """목표 달성 순간 Windows 잠금이 바로 풀리도록 Firebase에 즉시 업로드합니다."""
         payload = self.build_study_status_payload()
-        if self.push_study_status(payload, success_text="● 목표 달성 → 윈도우 잠금 해제 전송"):
+        if self.push_study_status(payload, success_text="목표 달성 상태 저장됨"):
             self.save_config()
 
     def show_goal_reached_popup(self):
@@ -432,7 +432,7 @@ class StudyTrackerApp:
         self._goal_popup_shown = True
         messagebox.showinfo(
             "공부시간 달성",
-            "오늘 공부시간을 모두 채웠습니다! 🎉\n이제 자유롭게 쉬어도 됩니다."
+            "오늘 목표 시간을 모두 채웠습니다.\n이제 타이머를 종료해도 됩니다."
         )
 
     def get_macos_idle_time(self):
@@ -571,7 +571,7 @@ class StudyTrackerApp:
                     self.discord_active_seconds += 1
                     if self.discord_active_seconds >= 300: # 5분 (300초)
                         self.discord_active_seconds = 0
-                        self.root.after(0, lambda: self.status_label.config(text="🚨 디스코드 5분 초과로 강제 종료!", fg=self.error_color))
+                        self.root.after(0, lambda: self.status_label.config(text="디스코드 사용 제한으로 앱을 종료했습니다", fg=self.error_color))
                         self.kill_blocked_app("Discord")
                 else:
                     self.discord_active_seconds = 0
@@ -595,15 +595,15 @@ class StudyTrackerApp:
                     self.is_tracking = False
                     self._last_valid_tracking_at = None
                     self._study_time_remainder = 0.0
-                    self.root.after(0, lambda: messagebox.showwarning("자리비움 감지", "5분 이상 움직임이 없어 공부 타이머가 일시 정지되었습니다.\n공부를 다시 시작하면 '공부 시작'을 눌러주세요."))
-                    self.root.after(0, lambda: self.pause_by_system("자리비움으로 일시정지 ⏸️"))
+                    self.root.after(0, lambda: messagebox.showwarning("자리비움 감지", "5분 이상 입력이 없어 타이머를 일시 정지했습니다.\n다시 공부하려면 '공부 시작'을 눌러주세요."))
+                    self.root.after(0, lambda: self.pause_by_system("자리비움으로 일시 정지"))
                 elif is_blocked:
                     # ⚠️ 차단 대상 앱 가동 감지!
                     self._last_valid_tracking_at = None
                     self._study_time_remainder = 0.0
                     if not is_goal_reached:
                         # 아직 목표 시간을 채우지 않았다면 -> 타이머를 멈추지 않고, 딴짓 앱만 번개처럼 강제 폭파 종료시킵니다!
-                        self.root.after(0, lambda a=active_app: self.status_label.config(text=f"🚨 차단 대상 앱 [{a}] 강제 종료 완료!", fg=self.error_color))
+                        self.root.after(0, lambda a=active_app: self.status_label.config(text=f"차단 앱 [{a}]을 종료했습니다", fg=self.error_color))
                         self.kill_blocked_app(active_app)
                     # 목표를 채운 이후에는 정상 허용하되, 목표 시간은 더 누적하지 않습니다.
                 else:
@@ -623,7 +623,7 @@ class StudyTrackerApp:
                     
                     # 오늘 목표 달성 여부 실시간 체크 → 달성 직후 Firebase 즉시 전송(Windows 잠금 해제)
                     if target_seconds > 0 and self.accumulated_seconds >= target_seconds:
-                        self.root.after(0, lambda: self.status_label.config(text="오늘 목표 달성 성공! 🎉", fg=self.success_color))
+                        self.root.after(0, lambda: self.status_label.config(text="오늘 목표를 달성했습니다", fg=self.success_color))
                         self.root.after(0, self.show_goal_reached_popup)
                         if not self._goal_synced:
                             self._goal_synced = True
@@ -636,12 +636,12 @@ class StudyTrackerApp:
                     
                     # 1. 블랙리스트 프로그램이 활성화되면 즉시 종료
                     if self.check_app_blocked(active_app):
-                        self.root.after(0, lambda a=active_app: self.status_label.config(text=f"🚨 [미완수 잠금] 일시정지 중 딴짓 불가! [{a}] 종료", fg=self.error_color))
+                        self.root.after(0, lambda a=active_app: self.status_label.config(text=f"일시 정지 중에는 [{a}]을 사용할 수 없습니다", fg=self.error_color))
                         self.kill_blocked_app(active_app)
                     
                     # 2. 디스코드 감지되면 즉시 종료 (일시정지 중에는 즉시 차단!)
                     if "discord" in active_app.lower():
-                        self.root.after(0, lambda: self.status_label.config(text="🚨 [미완수 잠금] 일시정지 중 디스코드 사용 불가!", fg=self.error_color))
+                        self.root.after(0, lambda: self.status_label.config(text="일시 정지 중에는 디스코드를 사용할 수 없습니다", fg=self.error_color))
                         self.kill_blocked_app("Discord")
                         
                     # 3. 딴짓 웹사이트 차단 (일시정지 중에는 2초 주기로 작동)
@@ -654,7 +654,7 @@ class StudyTrackerApp:
         """자리를 비웠거나 다른 앱을 켰을 때 시스템이 타이머를 중지시킴 (메인 스레드에서만 실행)"""
         self._last_valid_tracking_at = None
         self._study_time_remainder = 0.0
-        self.start_btn.config(text="공부 시작 🔥", bg=self.accent_color, fg=self.bg_color)
+        self.start_btn.config(text="공부 시작", bg=self.accent_color, fg=self.bg_color)
         self.status_label.config(text=reason_text, fg=self.error_color)
         self.save_config()
 
@@ -669,10 +669,10 @@ class StudyTrackerApp:
         self._midnight_reset_pending = False
         self.current_date = datetime.date.today().isoformat()
         self.unlock_daily_target()
-        self.start_btn.config(text="공부 시작 🔥", bg=self.accent_color, fg=self.bg_color)
+        self.start_btn.config(text="공부 시작", bg=self.accent_color, fg=self.bg_color)
         self.update_timer_display()
         self.status_label.config(
-            text="🚨 자정 초기화! 공부시간 리셋 · 목표 다시 수정 가능",
+            text="날짜 변경: 공부 시간 초기화 · 목표 수정 가능",
             fg=self.error_color,
         )
         self.save_config()
