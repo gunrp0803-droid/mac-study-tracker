@@ -19,7 +19,7 @@ DEFAULT_FIREBASE_URL = "https://study-radar-72625-111d9-default-rtdb.firebaseio.
 class StudyTrackerApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Antigravity Study Tracker (Mac)")
+        self.root.title("Study Tracker (Mac)")
         self.root.geometry("450x480")
         self.root.resizable(False, False)
         
