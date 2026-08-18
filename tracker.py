@@ -4,9 +4,11 @@ import time
 import datetime
 import threading
 import json
+import math
 import subprocess
 import tkinter as tk
 from tkinter import messagebox, ttk
+from urllib.parse import urlparse
 import requests
 
 # 설정 파일 경로 (스크립트 위치 기준 — 실행 cwd와 무관)
@@ -48,6 +50,8 @@ class StudyTrackerApp:
         self._goal_synced = False  # 목표 달성 직후 Firebase 즉시 동기화했는지
         self._goal_popup_shown = False  # 오늘 목표 달성 팝업을 이미 표시했는지
         self._midnight_reset_pending = False  # 자정 리셋 중복 예약 방지
+        self._last_valid_tracking_at = None
+        self._study_time_remainder = 0.0
         
         # 차단할 프로그램 목록 (소문자 기준 블랙리스트)
         # 스포티파이(Spotify)는 제외하고 순수 오락 목적만 가진 프로그램을 차단합니다.
@@ -99,21 +103,22 @@ class StudyTrackerApp:
                 with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                     config = json.load(f)
                     self.firebase_url = (config.get("firebase_url") or "").strip()
-                    self.target_hours = config.get("target_hours", 3.0)
+                    configured_hours = config.get("target_hours", 3.0)
+                    self.target_hours = self.coerce_target_hours(configured_hours) or 3.0
 
                     saved_date = config.get("last_date", "")
                     self.target_locked_date = config.get("target_locked_date", "")
 
                     # 오늘 날짜와 저장된 날짜가 같으면 누적 공부 시간 및 목표 시간 고정 상태 복원
                     if saved_date == today_date:
-                        self.accumulated_seconds = config.get("accumulated_seconds", 0)
+                        self.accumulated_seconds = max(0, int(config.get("accumulated_seconds", 0)))
                         # 오늘 이미 '공부 시작'으로 잠근 경우에만 목표 입력 잠금 유지
                         if self.target_locked_date == today_date:
                             self.is_target_locked = True
                         else:
                             self.is_target_locked = False
                             self.target_locked_date = ""
-                        target_seconds = int(float(self.target_hours) * 3600)
+                        target_seconds = self.target_seconds()
                         self._goal_synced = self.accumulated_seconds >= target_seconds
                     else:
                         # 날짜가 바뀜(자정 이후 재실행) → 공부시간 0 + 목표 다시 수정 가능
@@ -180,9 +185,25 @@ class StudyTrackerApp:
 
     def format_hours_to_str(self, float_hours):
         """float 타입의 시간을 hh:mm 형태로 이쁘게 파싱합니다. (예: 2.5 -> 02:30)"""
-        hrs = int(float_hours)
-        mins = int(round((float_hours - hrs) * 60))
+        total_minutes = max(0, int(round(float(float_hours) * 60)))
+        hrs, mins = divmod(total_minutes, 60)
         return f"{hrs:02d}:{mins:02d}"
+
+    @staticmethod
+    def coerce_target_hours(value):
+        """설정 파일의 목표 시간을 유한한 양의 시간으로 정규화합니다."""
+        try:
+            hours = float(value)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(hours) or hours <= 0:
+            return None
+        return hours
+
+    def target_seconds(self):
+        """현재 목표를 초 단위로 반환합니다. 잘못된 목표는 0으로 처리합니다."""
+        hours = self.coerce_target_hours(self.target_hours)
+        return int(hours * 3600) if hours is not None else 0
 
     def parse_str_to_hours(self, time_str):
         """hh:mm 또는 h:mm 형식의 문자열을 float 시간으로 변환합니다. (예: '2:30' -> 2.5)"""
@@ -198,7 +219,7 @@ class StudyTrackerApp:
             else:
                 # 숫자 하나만 적은 하위 호환용 (예: '3' -> 3.0)
                 val = float(time_str)
-                if val >= 0:
+                if math.isfinite(val) and val >= 0:
                     return val
         except ValueError:
             pass
@@ -305,11 +326,13 @@ class StudyTrackerApp:
                 messagebox.showerror("입력 오류", "Firebase Realtime DB URL을 입력해 주세요.")
                 return
             
-            if not url.startswith("http"):
+            if not url.startswith(("http://", "https://")):
                 url = "https://" + url
+            parsed_url = urlparse(url)
+            if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+                messagebox.showerror("입력 오류", "Firebase URL 형식이 올바르지 않습니다.")
+                return
             self.firebase_url = url
-            
-            today_str = datetime.date.today().isoformat()
             
             # 오늘 처음 '공부 시작'을 누른 순간부터 목표 시간 잠금 (자정까지 수정 불가)
             if not self.is_target_locked:
@@ -321,11 +344,15 @@ class StudyTrackerApp:
                 self.lock_daily_target(parsed_hours)
             
             self.is_tracking = True
+            self._last_valid_tracking_at = time.monotonic()
+            self._study_time_remainder = 0.0
             self.start_btn.config(text="일시 정지 ⏸️", bg="#44444a", fg=self.text_color)
             self.status_label.config(text="열공 중! 측정 중입니다 🔥", fg=self.success_color)
             self.save_config()
         else:
             self.is_tracking = False
+            self._last_valid_tracking_at = None
+            self._study_time_remainder = 0.0
             self.start_btn.config(text="공부 시작 🔥", bg=self.accent_color, fg=self.bg_color)
             self.status_label.config(text="공부 일시 정지 중 ⏸️", fg=self.dim_text)
             self.save_config()
@@ -356,8 +383,8 @@ class StudyTrackerApp:
             today_study_seconds = self.accumulated_seconds
         if is_study_active is None:
             is_study_active = self.is_tracking
-        target_seconds = int(float(self.target_hours) * 3600)
-        study_seconds = int(today_study_seconds)
+        target_seconds = self.target_seconds()
+        study_seconds = max(0, int(today_study_seconds))
         return {
             "date": today_str,
             "today_study_seconds": study_seconds,
@@ -531,8 +558,8 @@ class StudyTrackerApp:
                 time.sleep(1)
                 continue
 
-            target_seconds = int(self.target_hours * 3600)
-            is_goal_reached = self.accumulated_seconds >= target_seconds
+            target_seconds = self.target_seconds()
+            is_goal_reached = target_seconds > 0 and self.accumulated_seconds >= target_seconds
             
             if self.is_tracking:
                 # 1. 활성 앱 모니터링
@@ -566,25 +593,36 @@ class StudyTrackerApp:
                 if is_idle:
                     # 자리 비움으로 인한 강제 일시 정지 (이것은 기존처럼 멈추고 안내)
                     self.is_tracking = False
+                    self._last_valid_tracking_at = None
+                    self._study_time_remainder = 0.0
                     self.root.after(0, lambda: messagebox.showwarning("자리비움 감지", "5분 이상 움직임이 없어 공부 타이머가 일시 정지되었습니다.\n공부를 다시 시작하면 '공부 시작'을 눌러주세요."))
                     self.root.after(0, lambda: self.pause_by_system("자리비움으로 일시정지 ⏸️"))
                 elif is_blocked:
                     # ⚠️ 차단 대상 앱 가동 감지!
+                    self._last_valid_tracking_at = None
+                    self._study_time_remainder = 0.0
                     if not is_goal_reached:
                         # 아직 목표 시간을 채우지 않았다면 -> 타이머를 멈추지 않고, 딴짓 앱만 번개처럼 강제 폭파 종료시킵니다!
                         self.root.after(0, lambda a=active_app: self.status_label.config(text=f"🚨 차단 대상 앱 [{a}] 강제 종료 완료!", fg=self.error_color))
                         self.kill_blocked_app(active_app)
-                    else:
-                        # 목표 시간을 다 채운 이후에는 정상 허용하여 아무 앱이나 다 켤 수 있게 둡니다.
-                        self.accumulated_seconds += 1
-                        self.root.after(0, self.update_timer_display)
+                    # 목표를 채운 이후에는 정상 허용하되, 목표 시간은 더 누적하지 않습니다.
                 else:
-                    # 모든 조건 통과 시 1초 누적
-                    self.accumulated_seconds += 1
-                    self.root.after(0, self.update_timer_display)
+                    # 모든 조건을 통과한 실제 경과 시간만 누적합니다.
+                    if not is_goal_reached:
+                        now = time.monotonic()
+                        if self._last_valid_tracking_at is None:
+                            self._last_valid_tracking_at = now
+                        else:
+                            self._study_time_remainder += max(0.0, now - self._last_valid_tracking_at)
+                            self._last_valid_tracking_at = now
+                            elapsed_seconds = int(self._study_time_remainder)
+                            if elapsed_seconds:
+                                self.accumulated_seconds += elapsed_seconds
+                                self._study_time_remainder -= elapsed_seconds
+                                self.root.after(0, self.update_timer_display)
                     
                     # 오늘 목표 달성 여부 실시간 체크 → 달성 직후 Firebase 즉시 전송(Windows 잠금 해제)
-                    if self.accumulated_seconds >= target_seconds:
+                    if target_seconds > 0 and self.accumulated_seconds >= target_seconds:
                         self.root.after(0, lambda: self.status_label.config(text="오늘 목표 달성 성공! 🎉", fg=self.success_color))
                         self.root.after(0, self.show_goal_reached_popup)
                         if not self._goal_synced:
@@ -614,6 +652,8 @@ class StudyTrackerApp:
 
     def pause_by_system(self, reason_text):
         """자리를 비웠거나 다른 앱을 켰을 때 시스템이 타이머를 중지시킴 (메인 스레드에서만 실행)"""
+        self._last_valid_tracking_at = None
+        self._study_time_remainder = 0.0
         self.start_btn.config(text="공부 시작 🔥", bg=self.accent_color, fg=self.bg_color)
         self.status_label.config(text=reason_text, fg=self.error_color)
         self.save_config()
@@ -622,6 +662,8 @@ class StudyTrackerApp:
         """자정(24시) 정각: 공부시간 0초 초기화 + 목표 시간 다시 수정 가능 + Windows 재잠금."""
         self.accumulated_seconds = 0
         self.is_tracking = False
+        self._last_valid_tracking_at = None
+        self._study_time_remainder = 0.0
         self._goal_synced = False
         self._goal_popup_shown = False
         self._midnight_reset_pending = False
