@@ -54,16 +54,8 @@ class StudyTrackerApp:
         self._study_time_remainder = 0.0
         
         # 차단할 프로그램 목록 (소문자 기준 블랙리스트)
-        # 스포티파이(Spotify)는 제외하고 순수 오락 목적만 가진 프로그램을 차단합니다.
         self.blocked_apps = [
-            "among us",               # 어몽어스 게임
-            "feather launcher",       # 마인크래프트 페더 런처
-            "jujutsuphanpara",        # 주술회전 팬텀 퍼레이드 게임
-            "league of legends",      # 리그 오브 레전드 게임
-            "leagueoflegends",        # 리그 오브 레전드 프로세스명 대비
-            "riot client",            # 라이엇 클라이언트 (롤 런처)
-            "riotclient",             # 라이엇 클라이언트 프로세스명 대비
-            "series comic viewer"     # 네이버 시리즈 만화 뷰어 (오락용 뷰어)
+            
         ]
         
         # 차단할 딴짓 사이트 키워드 (유튜브, 인스타, 페북, 틱톡, 트위터/X, 넷플릭스, 트위치 등)
@@ -536,7 +528,7 @@ class StudyTrackerApp:
         try:
             # killall 명령어를 사용해 해당 전면 프로그램의 프로세스를 즉각 강제 폭파합니다.
             subprocess.run(["killall", app_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            print(f"[보안 차단] 차단 대상 앱 강제 처형 성공: {app_name}")
+            print(f"[보안 차단] 차단 대상 앱 강제 종료 성공: {app_name}")
         except Exception as e:
             print(f"[보안 차단] 앱 처형 에러 ({app_name}): {e}")
 
@@ -583,7 +575,7 @@ class StudyTrackerApp:
                 if self.accumulated_seconds % 2 == 0 and not is_goal_reached:
                     self.close_distracting_browser_tabs()
 
-                # 3. 자리비움 체크 (ioreg 기반 시스템 비활동 시간 측정 - 권한 우회 및 안정성 100%)
+                # 3. 자리비움 체크 (ioreg 기반 시스템 비활동 시간 측정)
                 idle_time = self.get_macos_idle_time()
                 is_idle = idle_time > 300  # 5분(300초) 이상 조작 없음
                 
@@ -591,18 +583,18 @@ class StudyTrackerApp:
                 is_blocked = self.check_app_blocked(active_app)
                 
                 if is_idle:
-                    # 자리 비움으로 인한 강제 일시 정지 (이것은 기존처럼 멈추고 안내)
+                    # 자리 비움으로 인한 강제 일시 정지
                     self.is_tracking = False
                     self._last_valid_tracking_at = None
                     self._study_time_remainder = 0.0
                     self.root.after(0, lambda: messagebox.showwarning("자리비움 감지", "5분 이상 입력이 없어 타이머를 일시 정지했습니다.\n다시 공부하려면 '공부 시작'을 눌러주세요."))
                     self.root.after(0, lambda: self.pause_by_system("자리비움으로 일시 정지"))
                 elif is_blocked:
-                    # ⚠️ 차단 대상 앱 가동 감지!
+                    # 차단 대상 앱 가동 감지
                     self._last_valid_tracking_at = None
                     self._study_time_remainder = 0.0
                     if not is_goal_reached:
-                        # 아직 목표 시간을 채우지 않았다면 -> 타이머를 멈추지 않고, 딴짓 앱만 번개처럼 강제 폭파 종료시킵니다!
+                        # 아직 목표 시간을 채우지 않았다면 -> 타이머를 멈추지 않고, 딴짓 앱만 강제 종료
                         self.root.after(0, lambda a=active_app: self.status_label.config(text=f"차단 앱 [{a}]을 종료했습니다", fg=self.error_color))
                         self.kill_blocked_app(active_app)
                     # 목표를 채운 이후에는 정상 허용하되, 목표 시간은 더 누적하지 않습니다.
@@ -630,7 +622,7 @@ class StudyTrackerApp:
                             threading.Thread(target=self.immediate_firebase_goal_sync, daemon=True).start()
             else:
                 # [공부 타이머가 일시정지 되어 있을 때의 보안 감시 로직]
-                # 목표를 채우지 못했다면 일시정지 상태여도 게임, 디스코드, 딴짓 탭 차단 작동!
+                # 목표를 채우지 못했다면 일시정지 상태여도 게임, 디스코드, 딴짓 탭 차단 작동
                 if not is_goal_reached:
                     active_app = self.get_active_window_macos()
                     
@@ -639,7 +631,7 @@ class StudyTrackerApp:
                         self.root.after(0, lambda a=active_app: self.status_label.config(text=f"일시 정지 중에는 [{a}]을 사용할 수 없습니다", fg=self.error_color))
                         self.kill_blocked_app(active_app)
                     
-                    # 2. 디스코드 감지되면 즉시 종료 (일시정지 중에는 즉시 차단!)
+                    # 2. 디스코드 감지되면 즉시 종료
                     if "discord" in active_app.lower():
                         self.root.after(0, lambda: self.status_label.config(text="일시 정지 중에는 디스코드를 사용할 수 없습니다", fg=self.error_color))
                         self.kill_blocked_app("Discord")
